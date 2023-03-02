@@ -26,6 +26,7 @@ class ViewController: UIViewController {
             let stackView = UIStackView()
             stackView.axis = .horizontal
             stackView.alignment = .center
+            stackView.spacing = 10.0
             return stackView
         }
         return stackViews
@@ -39,6 +40,16 @@ class ViewController: UIViewController {
             return imageView
         }
         return imageViews
+    }()
+
+    let progressViews: [UIProgressView] = {
+        let progressViews = (0..<5).map { _ -> UIProgressView in
+            let progressView = UIProgressView(progressViewStyle: .bar)
+            progressView.trackTintColor = .systemGray6
+            progressView.progressTintColor = .systemBlue
+            return progressView
+        }
+        return progressViews
     }()
 
     let loadButtons: [UIButton] = {
@@ -74,19 +85,29 @@ class ViewController: UIViewController {
                 buttonTapped: Observable<Int>
                     .merge(self.loadButtons.enumerated().map { index, button in
                         button.rx.tap.map { index }.asObservable()
+                    })
+                    .do(onNext: { index in
+                        self.imageViews[index].image = UIImage(systemName: "photo")
                     }),
-                loadAllTapped: self.loadAllImagesButton.rx.tap.asObservable()))
+                loadAllTapped: self.loadAllImagesButton.rx.tap.asObservable()
+                    .do(onNext: { _ in
+                        self.imageViews.forEach { $0.image = UIImage(systemName: "photo")}
+                    })
+            )
+        )
         output.image.bind { index, imageData in
             DispatchQueue.main.async {
-                if let data = imageData {
-                    self.imageViews[index].image = UIImage(data: data)
-                } else {
-                    self.imageViews[index].image = nil
-                    self.imageViews[index].image = UIImage(systemName: "photo")
-                }
+                self.imageViews[index].image = UIImage(data: imageData)
             }
         }
         .disposed(by: self.disposeBag)
+
+        self.progressViews.enumerated().forEach { index, progressView in
+            output.progress[index]?.bind {
+                self.progressViews[index].observedProgress = $0
+            }
+            .disposed(by: self.disposeBag)
+        }
     }
 
     private func configure() {
@@ -115,10 +136,12 @@ class ViewController: UIViewController {
             ])
 
             stackView.addArrangedSubview(self.imageViews[index])
+            stackView.addArrangedSubview(self.progressViews[index])
             stackView.addArrangedSubview(self.loadButtons[index])
             NSLayoutConstraint.activate([
                 self.imageViews[index].heightAnchor.constraint(equalTo: safeAreaLayoutGuide.heightAnchor, multiplier: 0.14),
                 self.imageViews[index].widthAnchor.constraint(equalTo: safeAreaLayoutGuide.widthAnchor, multiplier: 0.30),
+                self.progressViews[index].heightAnchor.constraint(equalToConstant: 5),
                 self.loadButtons[index].heightAnchor.constraint(equalTo: safeAreaLayoutGuide.heightAnchor, multiplier: 0.05),
                 self.loadButtons[index].widthAnchor.constraint(equalTo: safeAreaLayoutGuide.widthAnchor, multiplier: 0.22)
             ])
